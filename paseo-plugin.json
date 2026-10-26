@@ -13,6 +13,7 @@
   },
   "media": [
     "assets/manager-dark.png",
-    "assets/manager-light.png"
+    "assets/manager-light.png",
+    "assets/manager-editor.png"
   ]
 }

@@ -1,5 +1,6 @@
 import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
+import { messages } from "./client/messages.ts";
 import { Manager } from "./client/manager.tsx";
 
 function Navigation({ currentScreen, openScreen }: PluginSidebarItemProps) {
@@ -7,7 +8,7 @@ function Navigation({ currentScreen, openScreen }: PluginSidebarItemProps) {
 }
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen({ id: "main", title: "MCP Manager", Component: Manager });
-  client.addSidebarFooterItem({ id: "main", title: "MCP Manager", Component: Navigation });
+  client.addScreen({ id: "main", title: messages.message("managerTitle"), Component: Manager });
+  client.addSidebarFooterItem({ id: "main", title: messages.message("managerTitle"), Component: Navigation });
   return () => {};
 }

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { useSettings, type PluginScreenProps, type SettingsState } from "@getpaseo/plugin/client";
-import { ScrollView, SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch, TextInput } from "@getpaseo/plugin/client/ui";
+import { useSettings, useTranslation, type PluginScreenProps, type SettingsState } from "@getpaseo/plugin/client";
+import { Modal, ScrollView, SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch, TextInput } from "@getpaseo/plugin/client/ui";
+import { Action } from "./action.tsx";
+import { messages, type MessageKey } from "./messages.ts";
 import { connection, services, type ServiceValues } from "../shared/services.ts";
 
 type Settings = SettingsState<typeof services.schema>;
@@ -9,6 +11,7 @@ type Ready = Extract<Settings, { status: "ready" }>;
 type Draft = { originalName: string | null; values: ServiceValues; revision: string };
 
 function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; settings: Settings; theme: PluginScreenProps["theme"]; onClose(): void }) {
+  const { t } = useTranslation(messages);
   const initial = draft.originalName === null ? undefined : draft.values.services[draft.originalName];
   const [base, setBase] = useState(draft);
   const [name, setName] = useState(draft.originalName ?? "");
@@ -22,7 +25,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
   const [alwaysLoad, setAlwaysLoad] = useState<"default" | "true" | "false">(initial?.config.alwaysLoad === undefined ? "default" : String(initial.config.alwaysLoad) as "true" | "false");
   const [mode, setMode] = useState<"form" | "json">("form");
   const [json, setJson] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<MessageKey | "">("");
   const [saveFailed, setSaveFailed] = useState(false);
   const blocked = settings.saving || settings.status !== "ready";
   const textStyle = { color: theme.colors.foreground };
@@ -34,7 +37,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
       const result = connection.safeParse(value);
       if (result.success) return result.data;
     } catch {}
-    setError("Use an HTTP/HTTPS URL and string headers, or a nonempty stdio command, JSON string args array and string env values. alwaysLoad must be a boolean. Unknown fields and unsupported transports are rejected. Check JSON syntax if using JSON.");
+    setError("validationConnection");
   };
   const switchMode = () => {
     setError("");
@@ -52,60 +55,64 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
   const save = async () => {
     setError("");
     const key = name.trim();
-    if (key !== base.originalName && Object.hasOwn(base.values.services, key)) { setError("A service with this name already exists. Choose another name."); return; }
+    if (key !== base.originalName && Object.hasOwn(base.values.services, key)) { setError("validationDuplicate"); return; }
     const config = parse();
     if (!config) return;
     const next = { ...base.values.services };
     if (base.originalName !== null) delete next[base.originalName];
     const parsed = services.schema.safeParse({ services: { ...next, [key]: { enabled, config } } });
-    if (!parsed.success) { setError("Names must contain letters, numbers, hyphens or underscores. paseo and JavaScript prototype names are reserved."); return; }
+    if (!parsed.success) { setError("validationName"); return; }
     if (await settings.save(parsed.data, base.revision)) onClose();
     else setSaveFailed(true);
   };
-  return <SettingsSection title={draft.originalName === null ? "Add service" : `Edit ${draft.originalName}`}>
+  return <Modal title={draft.originalName === null ? t("addService") : t("editNamed", { name: draft.originalName })} open onOpenChange={open => { if (!open && !settings.saving) onClose(); }}><Modal.Content>
     <SettingsCard>
-      <SettingsInput label="Service name" initialValue={name} onChangeText={setName} disabled={blocked} placeholder="search" />
-      <SettingsSwitch label="Enabled for new agents" value={enabled} onValueChange={setEnabled} disabled={blocked} />
-      <SettingsAction label="Connection editor" actionLabel={mode === "form" ? "Edit JSON" : "Use form"} disabled={blocked} onPress={switchMode} />
-      {mode === "json" ? <SettingsRow label="Connection JSON" hint="The name and enabled state are managed separately. Only supported connection fields are accepted.">
-        <TextInput accessibilityLabel="Connection JSON" multiline value={json} onChangeText={setJson} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+      <SettingsInput label={t("serviceName")} initialValue={name} onChangeText={setName} disabled={blocked} placeholder="search" />
+      <SettingsSwitch label={t("enabledNew")} value={enabled} onValueChange={setEnabled} disabled={blocked} />
+      <SettingsAction label={t("connectionEditor")} actionLabel={mode === "form" ? t("editJson") : t("useForm")} disabled={blocked} onPress={switchMode} />
+      {mode === "json" ? <SettingsRow label={t("connectionJson")} hint={t("connectionHint")}>
+        <TextInput accessibilityLabel={t("connectionJson")} multiline value={json} onChangeText={setJson} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
       </SettingsRow> : <View key="form">
-        <SettingsSelect<"http" | "stdio"> label="Transport" value={transport} options={[{ label: "HTTP", value: "http" }, { label: "stdio", value: "stdio" }]} onValueChange={setTransport} disabled={blocked} />
+        <SettingsSelect<"http" | "stdio"> label={t("transport")} value={transport} options={[{ label: "HTTP", value: "http" }, { label: "stdio", value: "stdio" }]} onValueChange={setTransport} disabled={blocked} />
         {transport === "http" ? <View key="http">
-        <SettingsInput label="URL" initialValue={url} onChangeText={setUrl} disabled={blocked} placeholder="https://example.com/mcp" />
-        <SettingsRow label="Headers (JSON)" hint="Enter tokens directly, including any Bearer prefix. Stored as restricted local JSON and readable by authorized editing clients.">
-          <TextInput accessibilityLabel="HTTP headers JSON" multiline value={headers} onChangeText={setHeaders} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+        <SettingsInput label={t("url")} initialValue={url} onChangeText={setUrl} disabled={blocked} placeholder="https://example.com/mcp" />
+        <SettingsRow label={t("headers")} hint={t("headersHint")}>
+          <TextInput accessibilityLabel={t("headersInput")} multiline value={headers} onChangeText={setHeaders} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
         </SettingsRow>
         </View> : <View key="stdio">
-          <SettingsInput label="Command" initialValue={command} onChangeText={setCommand} disabled={blocked} placeholder="node" />
-          <SettingsRow label="Arguments (JSON array)" hint="Each string is one argument. Spaces and special characters are preserved; no shell splitting.">
-            <TextInput accessibilityLabel="stdio arguments JSON" multiline value={args} onChangeText={setArgs} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+          <SettingsInput label={t("command")} initialValue={command} onChangeText={setCommand} disabled={blocked} placeholder="node" />
+          <SettingsRow label={t("arguments")} hint={t("argumentsHint")}>
+            <TextInput accessibilityLabel={t("argumentsInput")} multiline value={args} onChangeText={setArgs} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
           </SettingsRow>
-          <SettingsRow label="Environment (JSON)" hint="Enter tokens as literal values. Stored as restricted local JSON and readable by authorized editing clients. The provider runs commands in the agent context.">
-            <TextInput accessibilityLabel="stdio environment JSON" multiline value={env} onChangeText={setEnv} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+          <SettingsRow label={t("environment")} hint={t("environmentHint")}>
+            <TextInput accessibilityLabel={t("environmentInput")} multiline value={env} onChangeText={setEnv} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
           </SettingsRow>
         </View>}
-        <SettingsSelect<"default" | "true" | "false"> label="Tool loading" value={alwaysLoad} options={[{ label: "Provider default", value: "default" }, { label: "Always load", value: "true" }, { label: "On demand", value: "false" }]} onValueChange={setAlwaysLoad} disabled={blocked} />
+        <SettingsSelect<"default" | "true" | "false"> label={t("toolLoading")} value={alwaysLoad} options={[{ label: t("providerDefault"), value: "default" }, { label: t("alwaysLoad"), value: "true" }, { label: t("onDemand"), value: "false" }]} onValueChange={setAlwaysLoad} disabled={blocked} />
       </View>}
-      <SettingsAction label="Apply to future agents" actionLabel={settings.saving ? "Saving…" : "Save service"} disabled={blocked} onPress={() => void save()} />
-      <SettingsAction label="Discard draft" actionLabel="Cancel" disabled={settings.saving} onPress={onClose} />
     </SettingsCard>
-    {error ? <Text accessibilityRole="alert" style={textStyle}>{error}</Text> : null}
+    {error ? <Text accessibilityRole="alert" style={textStyle}>{t(error)}</Text> : null}
     {saveFailed ? <View style={{ gap: 8 }}>
-      <Text accessibilityRole="alert" style={textStyle}>Save failed or another client changed the settings. Your draft is preserved. Reload, review the current list, then explicitly use that version with your draft before retrying. Saving will replace this service; other services use the reloaded version.</Text>
-      <SettingsAction label="Keep this draft and read current settings" actionLabel="Reload saved version" disabled={settings.saving} onPress={() => void settings.reload()} />
-      <SettingsAction label="Use the displayed saved version as the base for this draft" actionLabel="Use latest version with draft" disabled={blocked} onPress={() => {
+      <Text accessibilityRole="alert" style={textStyle}>{t("saveConflict")}</Text>
+      <SettingsAction label={t("keepDraftReload")} actionLabel={t("reloadSaved")} disabled={settings.saving} onPress={() => void settings.reload()} />
+      {settings.status === "ready" ? <Text style={textStyle}>{t("currentServices", { names: Object.keys(settings.values.services).join(", ") || "—" })}</Text> : null}
+      <SettingsAction label={t("baseHint")} actionLabel={t("useLatest")} disabled={blocked} onPress={() => {
         if (settings.status === "ready") { setBase({ ...base, values: settings.values, revision: settings.revision }); setSaveFailed(false); }
       }} />
     </View> : null}
-  </SettingsSection>;
+    <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+      <Action theme={theme} label={t("cancel")} disabled={settings.saving} onPress={onClose} />
+      <Action theme={theme} primary label={settings.saving ? t("saving") : t("saveService")} disabled={blocked} onPress={() => void save()} />
+    </View>
+  </Modal.Content></Modal>;
 }
 
 export function Manager({ theme, layout }: PluginScreenProps) {
+  const { t } = useTranslation(messages);
   const settings = useSettings(services);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [deletion, setDeletion] = useState<{ name: string; base: Ready } | null>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<MessageKey | "">("");
   const text = { color: theme.colors.foreground };
   const start = (name: string | null) => {
     if (settings.status === "ready") { setDraft({ originalName: name, values: settings.values, revision: settings.revision }); setNotice(""); }
@@ -114,40 +121,48 @@ export function Manager({ theme, layout }: PluginScreenProps) {
     if (settings.status !== "ready") return;
     const item = settings.values.services[name]!;
     const ok = await settings.save({ services: { ...settings.values.services, [name]: { ...item, enabled: !item.enabled } } }, settings.revision);
-    setNotice(ok ? "Saved for new agents." : "Save failed or settings changed. Reload before retrying; nothing was overwritten.");
+    setNotice(ok ? "saved" : "saveFailed");
   };
   const remove = async () => {
     if (!deletion) return;
     const next = { ...deletion.base.values.services };
     delete next[deletion.name];
-    if (await settings.save({ services: next }, deletion.base.revision)) { setDeletion(null); setNotice("Service deleted for new agents."); }
-    else setNotice("Delete failed or settings changed. Cancel this confirmation and reload before trying again.");
+    if (await settings.save({ services: next }, deletion.base.revision)) { setDeletion(null); setNotice("deleted"); }
+    else setNotice("deleteFailed");
   };
-  return <ScrollView style={{ flex: 1, backgroundColor: theme.colors.surface0 }} contentContainerStyle={{ padding: layout.compact ? 16 : 24, gap: 20 }}>
-    <View style={{ gap: 6 }}>
-      <Text accessibilityRole="header" style={{ ...text, fontSize: 24, fontWeight: "600" }}>MCP connections</Text>
-      <Text style={{ color: theme.colors.foregroundMuted }}>Saved connections apply only to new agents. Existing agents keep their configuration.</Text>
-      <Text style={{ color: theme.colors.foregroundMuted }}>HTTP / stdio · Codex, Claude and their provider aliases. Enabled means configured, not connected. Saving does not connect or start commands.</Text>
-    </View>
-    {settings.status === "loading" ? <Text style={text}>Loading connections…</Text> : settings.status !== "ready" ? <SettingsSection title={settings.status === "invalid" ? "Saved configuration is invalid" : "Unable to read connections"}>
-      <Text accessibilityRole="alert" style={text}>{settings.status === "invalid" ? "The saved values do not match the configuration format. Correct the stored configuration before creating agents. Your data has not been reset." : "The daemon could not be reached or the read failed. Reconnect and try again. Your data has not been reset."}</Text>
-      <SettingsAction label="Read saved configuration again" actionLabel="Reload" onPress={() => void settings.reload()} />
-    </SettingsSection> : <SettingsSection title={`Services (${Object.keys(settings.values.services).length})`}>
-      {!Object.keys(settings.values.services).length ? <Text style={text}>No services yet. Add a connection to get started.</Text> : Object.entries(settings.values.services).map(([name, value]) => <SettingsCard key={name}>
-        <SettingsRow label={name} hint={`${value.config.type === "http" ? "HTTP" : "stdio"} · ${value.enabled ? "Enabled for new agents" : "Disabled"}`} />
-        <SettingsSwitch label={`Enable ${name}`} value={value.enabled} disabled={settings.saving || !!draft || !!deletion} onValueChange={() => void toggle(name)} />
-        <SettingsAction label={`Edit ${name}`} actionLabel="Edit service" disabled={settings.saving || !!draft || !!deletion} onPress={() => start(name)} />
-        <SettingsAction label={`Remove ${name}`} actionLabel="Delete service" disabled={settings.saving || !!draft || !!deletion} onPress={() => { setDeletion({ name, base: settings }); setNotice(""); }} />
-      </SettingsCard>)}
-      {!draft && !deletion ? <SettingsAction label="Connect an external tool service" actionLabel="Add service" disabled={settings.saving} onPress={() => start(null)} /> : null}
-      <SettingsAction label="Read current saved configuration" actionLabel="Reload" disabled={settings.saving} onPress={() => void settings.reload()} />
-    </SettingsSection>}
+  return <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
+    <ScrollView contentContainerStyle={{ padding: layout.compact ? 16 : 24, gap: 24, width: "100%", maxWidth: 1000, alignSelf: "center" }}>
+      <View style={{ gap: 8 }}>
+        <Text accessibilityRole="header" style={{ ...text, fontSize: 24, fontWeight: "600" }}>{t("connectionsTitle")}</Text>
+        <Text style={{ color: theme.colors.foregroundMuted, lineHeight: 22 }}>{t("scopeHint")}</Text>
+        <Text style={{ color: theme.colors.foregroundMuted, lineHeight: 22 }}>{t("providerHint")}</Text>
+      </View>
+      {settings.status === "loading" ? <Text style={text}>{t("loading")}</Text> : settings.status !== "ready" ? <SettingsSection title={t(settings.status === "invalid" ? "invalidTitle" : "readErrorTitle")}>
+        <Text accessibilityRole="alert" style={text}>{t(settings.status === "invalid" ? "invalidHint" : "readErrorHint")}</Text>
+        <SettingsAction label={t("readAgain")} actionLabel={t("reload")} onPress={() => void settings.reload()} />
+      </SettingsSection> : <SettingsSection title={t("servicesCount", { count: Object.keys(settings.values.services).length })}>
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
+          <Action theme={theme} label={t("reload")} disabled={settings.saving || !!draft || !!deletion} onPress={() => void settings.reload()} />
+          <Action theme={theme} primary label={t("addService")} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(null)} />
+        </View>
+        {!Object.keys(settings.values.services).length ? <Text style={text}>{t("empty")}</Text> : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{Object.entries(settings.values.services).map(([name, value]) => <View key={name} style={{ flexBasis: layout.compact ? "100%" : 320, flexGrow: 1 }}><SettingsCard>
+          <SettingsSwitch label={name} hint={`${value.config.type === "http" ? "HTTP" : "stdio"} · ${t(value.enabled ? "enabledNew" : "disabled")}`} value={value.enabled} disabled={settings.saving || !!draft || !!deletion} onValueChange={() => void toggle(name)} />
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 4, paddingHorizontal: 12, paddingBottom: 8 }}>
+            <Action theme={theme} label={t("edit")} accessibilityLabel={t("editNamed", { name })} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(name)} />
+            <Action theme={theme} danger label={t("delete")} accessibilityLabel={t("removeNamed", { name })} disabled={settings.saving || !!draft || !!deletion} onPress={() => { setDeletion({ name, base: settings }); setNotice(""); }} />
+          </View>
+        </SettingsCard></View>)}</View>}
+      </SettingsSection>}
+      {notice && !deletion ? <Text accessibilityRole="alert" style={text}>{t(notice)}</Text> : null}
+    </ScrollView>
     {draft ? <ServiceEditor draft={draft} settings={settings} theme={theme} onClose={() => setDraft(null)} /> : null}
-    {deletion ? <SettingsSection title={`Delete ${deletion.name}?`}>
-      <Text style={text}>This removes its saved definition. Existing agents keep their configuration.</Text>
-      <SettingsAction label="Remove the saved definition" actionLabel="Confirm deletion" disabled={settings.saving || settings.status !== "ready"} onPress={() => void remove()} />
-      <SettingsAction label="Keep the service" actionLabel="Cancel deletion" disabled={settings.saving} onPress={() => setDeletion(null)} />
-    </SettingsSection> : null}
-    {notice ? <Text accessibilityRole="alert" style={text}>{notice}</Text> : null}
-  </ScrollView>;
+    {deletion ? <Modal title={t("deleteTitle", { name: deletion.name })} open onOpenChange={open => { if (!open && !settings.saving) setDeletion(null); }}><Modal.Content>
+      <Text style={text}>{t("deleteHint")}</Text>
+      {notice ? <Text accessibilityRole="alert" style={text}>{t(notice)}</Text> : null}
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+        <Action theme={theme} label={t("cancel")} disabled={settings.saving} onPress={() => setDeletion(null)} />
+        <Action theme={theme} danger label={t("confirmDelete")} disabled={settings.saving || settings.status !== "ready"} onPress={() => void remove()} />
+      </View>
+    </Modal.Content></Modal> : null}
+  </View>;
 }

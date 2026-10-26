@@ -33,3 +33,15 @@ The plugin is distributed as public Git source with a pinned release tag. It nee
 Public Git-source installation at commit `b0fc599` passed on a fresh community daemon (15.1 seconds): plugin status was running; settings, revision checks, reload, disable/re-enable, restart and removal checks passed without using local source dependencies.
 
 Community-registry status is tracked in the release and submission records. A submission alone does not establish community acceptance.
+
+# v0.1.1 interface update
+
+Recorded 2026-10-27. Reused Paseo's theme tokens and modal/form components, following the TAPD and Gongfeng plugin interaction patterns. Service cards wrap into two columns on a wide screen and one column on compact screens; add/edit and delete confirmation open host-owned dialogs.
+
+- Typecheck and ten contract/localization tests passed. Catalog keys and interpolation fields match in English and Simplified Chinese. A host translation-runtime test checks app-language changes, translated registration titles, literal service-name interpolation and English fallback.
+- Default isolated community-daemon integration passed (two checks; optional paid-provider check skipped). No server creation/injection code changed in this update; the v0.1.0 real-provider acceptance remains the backend evidence.
+- Actual web-client checks against a disposable 0.13.2 daemon: Chinese add form saved a fake credential; English edit/cancel retained the saved definition. A concurrent RPC write rejected a stale modal save; the draft survived reload, and explicit adoption of the latest revision saved without removing the other client's service.
+- Wide (1200px) cards displayed side by side; compact (390px) cards stacked without horizontal document overflow. English and Chinese listing titles, field labels and actions were checked in the actual app. Release media use sample definitions only.
+- Packaging includes the translation catalogs and excludes tests/development dependencies. No new dependencies were added.
+
+Physical iOS/Android keyboard and screen-reader behavior has not been checked. The server-browser plugin was tried first; the local daemon root did not serve a usable web page, so UI checks used the available Paseo app browser connected to the isolated daemon over its relay.

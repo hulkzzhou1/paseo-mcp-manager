@@ -9,10 +9,10 @@ Manage HTTP and stdio MCP services for **new Codex and Claude agents**, includin
 Enable trusted plugins on your daemon, then install the public source:
 
 ```bash
-paseo plugin install github:hulkzzhou1/paseo-mcp-manager --ref v0.1.0
+paseo plugin install github:hulkzzhou1/paseo-mcp-manager --ref v0.1.1
 ```
 
-Open **MCP Manager** in the sidebar. Add a service, select HTTP or stdio, enter its values, then save. Create a new Codex or Claude agent to use its tools. Saving does not connect, launch commands or verify credentials.
+Open **MCP Manager** in the sidebar. Connections appear as responsive cards; add and edit open a modal dialog. The interface follows the Paseo app language (English or Simplified Chinese, with English fallback). See the [bilingual message table](docs/translations.md). Add a service, select HTTP or stdio, enter its values, then save. Create a new Codex or Claude agent to use its tools. Saving does not connect, launch commands or verify credentials.
 
 - HTTP: HTTP/HTTPS URL and optional string-valued headers, including the complete authentication prefix.
 - stdio: executable command, a JSON array of argument strings, and a string-valued environment map. Commands run on the daemon in the agent's context; arguments are not split or evaluated as shell text.
