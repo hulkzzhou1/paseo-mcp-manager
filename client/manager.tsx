@@ -13,8 +13,12 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
   const [base, setBase] = useState(draft);
   const [name, setName] = useState(draft.originalName ?? "");
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
-  const [url, setUrl] = useState(initial?.config.url ?? "");
-  const [headers, setHeaders] = useState(JSON.stringify(initial?.config.headers ?? {}, null, 2));
+  const [transport, setTransport] = useState<"http" | "stdio">(initial?.config.type ?? "http");
+  const [url, setUrl] = useState(initial?.config.type === "http" ? initial.config.url : "");
+  const [command, setCommand] = useState(initial?.config.type === "stdio" ? initial.config.command : "");
+  const [args, setArgs] = useState(JSON.stringify(initial?.config.type === "stdio" ? initial.config.args ?? [] : [], null, 2));
+  const [env, setEnv] = useState(JSON.stringify(initial?.config.type === "stdio" ? initial.config.env ?? {} : {}, null, 2));
+  const [headers, setHeaders] = useState(JSON.stringify(initial?.config.type === "http" ? initial.config.headers ?? {} : {}, null, 2));
   const [alwaysLoad, setAlwaysLoad] = useState<"default" | "true" | "false">(initial?.config.alwaysLoad === undefined ? "default" : String(initial.config.alwaysLoad) as "true" | "false");
   const [mode, setMode] = useState<"form" | "json">("form");
   const [json, setJson] = useState("");
@@ -26,11 +30,11 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
 
   const parse = () => {
     try {
-      const value: unknown = mode === "json" ? JSON.parse(json) : { type: "http", url: url.trim(), headers: JSON.parse(headers), ...(alwaysLoad === "default" ? {} : { alwaysLoad: alwaysLoad === "true" }) };
+      const value: unknown = mode === "json" ? JSON.parse(json) : { ...(transport === "http" ? { type: "http", url: url.trim(), headers: JSON.parse(headers) } : { type: "stdio", command, args: JSON.parse(args), env: JSON.parse(env) }), ...(alwaysLoad === "default" ? {} : { alwaysLoad: alwaysLoad === "true" }) };
       const result = connection.safeParse(value);
       if (result.success) return result.data;
     } catch {}
-    setError("Use a valid HTTP/HTTPS URL, string header values and optional boolean alwaysLoad. Unknown fields and unsupported transports are rejected. Check JSON syntax if using JSON.");
+    setError("Use an HTTP/HTTPS URL and string headers, or a nonempty stdio command, JSON string args array and string env values. alwaysLoad must be a boolean. Unknown fields and unsupported transports are rejected. Check JSON syntax if using JSON.");
   };
   const switchMode = () => {
     setError("");
@@ -38,8 +42,9 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
     if (!value) return;
     if (mode === "form") { setJson(JSON.stringify(value, null, 2)); setMode("json"); }
     else {
-      setUrl(value.url);
-      setHeaders(JSON.stringify(value.headers ?? {}, null, 2));
+      setTransport(value.type);
+      if (value.type === "http") { setUrl(value.url); setHeaders(JSON.stringify(value.headers ?? {}, null, 2)); }
+      else { setCommand(value.command); setArgs(JSON.stringify(value.args ?? [], null, 2)); setEnv(JSON.stringify(value.env ?? {}, null, 2)); }
       setAlwaysLoad(value.alwaysLoad === undefined ? "default" : value.alwaysLoad ? "true" : "false");
       setMode("form");
     }
@@ -57,7 +62,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
     if (await settings.save(parsed.data, base.revision)) onClose();
     else setSaveFailed(true);
   };
-  return <SettingsSection title={draft.originalName === null ? "Add HTTP service" : `Edit ${draft.originalName}`}>
+  return <SettingsSection title={draft.originalName === null ? "Add service" : `Edit ${draft.originalName}`}>
     <SettingsCard>
       <SettingsInput label="Service name" initialValue={name} onChangeText={setName} disabled={blocked} placeholder="search" />
       <SettingsSwitch label="Enabled for new agents" value={enabled} onValueChange={setEnabled} disabled={blocked} />
@@ -65,10 +70,21 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
       {mode === "json" ? <SettingsRow label="Connection JSON" hint="The name and enabled state are managed separately. Only supported connection fields are accepted.">
         <TextInput accessibilityLabel="Connection JSON" multiline value={json} onChangeText={setJson} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
       </SettingsRow> : <View key="form">
+        <SettingsSelect<"http" | "stdio"> label="Transport" value={transport} options={[{ label: "HTTP", value: "http" }, { label: "stdio", value: "stdio" }]} onValueChange={setTransport} disabled={blocked} />
+        {transport === "http" ? <View key="http">
         <SettingsInput label="URL" initialValue={url} onChangeText={setUrl} disabled={blocked} placeholder="https://example.com/mcp" />
         <SettingsRow label="Headers (JSON)" hint="Enter tokens directly, including any Bearer prefix. Stored as restricted local JSON and readable by authorized editing clients.">
           <TextInput accessibilityLabel="HTTP headers JSON" multiline value={headers} onChangeText={setHeaders} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
         </SettingsRow>
+        </View> : <View key="stdio">
+          <SettingsInput label="Command" initialValue={command} onChangeText={setCommand} disabled={blocked} placeholder="node" />
+          <SettingsRow label="Arguments (JSON array)" hint="Each string is one argument. Spaces and special characters are preserved; no shell splitting.">
+            <TextInput accessibilityLabel="stdio arguments JSON" multiline value={args} onChangeText={setArgs} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+          </SettingsRow>
+          <SettingsRow label="Environment (JSON)" hint="Enter tokens as literal values. Stored as restricted local JSON and readable by authorized editing clients. The provider runs commands in the agent context.">
+            <TextInput accessibilityLabel="stdio environment JSON" multiline value={env} onChangeText={setEnv} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+          </SettingsRow>
+        </View>}
         <SettingsSelect<"default" | "true" | "false"> label="Tool loading" value={alwaysLoad} options={[{ label: "Provider default", value: "default" }, { label: "Always load", value: "true" }, { label: "On demand", value: "false" }]} onValueChange={setAlwaysLoad} disabled={blocked} />
       </View>}
       <SettingsAction label="Apply to future agents" actionLabel={settings.saving ? "Saving…" : "Save service"} disabled={blocked} onPress={() => void save()} />
@@ -111,19 +127,19 @@ export function Manager({ theme, layout }: PluginScreenProps) {
     <View style={{ gap: 6 }}>
       <Text accessibilityRole="header" style={{ ...text, fontSize: 24, fontWeight: "600" }}>MCP connections</Text>
       <Text style={{ color: theme.colors.foregroundMuted }}>Saved connections apply only to new agents. Existing agents keep their configuration.</Text>
-      <Text style={{ color: theme.colors.foregroundMuted }}>HTTP · Codex. Enabled means configured, not connected. Saving does not contact services.</Text>
+      <Text style={{ color: theme.colors.foregroundMuted }}>HTTP / stdio · Codex. Enabled means configured, not connected. Saving does not connect or start commands.</Text>
     </View>
     {settings.status === "loading" ? <Text style={text}>Loading connections…</Text> : settings.status !== "ready" ? <SettingsSection title={settings.status === "invalid" ? "Saved configuration is invalid" : "Unable to read connections"}>
       <Text accessibilityRole="alert" style={text}>{settings.status === "invalid" ? "The saved values do not match the configuration format. Correct the stored configuration before creating agents. Your data has not been reset." : "The daemon could not be reached or the read failed. Reconnect and try again. Your data has not been reset."}</Text>
       <SettingsAction label="Read saved configuration again" actionLabel="Reload" onPress={() => void settings.reload()} />
     </SettingsSection> : <SettingsSection title={`Services (${Object.keys(settings.values.services).length})`}>
-      {!Object.keys(settings.values.services).length ? <Text style={text}>No services yet. Add an HTTP connection to get started.</Text> : Object.entries(settings.values.services).map(([name, value]) => <SettingsCard key={name}>
-        <SettingsRow label={name} hint={`HTTP · ${value.enabled ? "Enabled for new agents" : "Disabled"}`} />
+      {!Object.keys(settings.values.services).length ? <Text style={text}>No services yet. Add a connection to get started.</Text> : Object.entries(settings.values.services).map(([name, value]) => <SettingsCard key={name}>
+        <SettingsRow label={name} hint={`${value.config.type === "http" ? "HTTP" : "stdio"} · ${value.enabled ? "Enabled for new agents" : "Disabled"}`} />
         <SettingsSwitch label={`Enable ${name}`} value={value.enabled} disabled={settings.saving || !!draft || !!deletion} onValueChange={() => void toggle(name)} />
         <SettingsAction label={`Edit ${name}`} actionLabel="Edit service" disabled={settings.saving || !!draft || !!deletion} onPress={() => start(name)} />
         <SettingsAction label={`Remove ${name}`} actionLabel="Delete service" disabled={settings.saving || !!draft || !!deletion} onPress={() => { setDeletion({ name, base: settings }); setNotice(""); }} />
       </SettingsCard>)}
-      {!draft && !deletion ? <SettingsAction label="Connect an external tool service" actionLabel="Add HTTP service" disabled={settings.saving} onPress={() => start(null)} /> : null}
+      {!draft && !deletion ? <SettingsAction label="Connect an external tool service" actionLabel="Add service" disabled={settings.saving} onPress={() => start(null)} /> : null}
       <SettingsAction label="Read current saved configuration" actionLabel="Reload" disabled={settings.saving} onPress={() => void settings.reload()} />
     </SettingsSection>}
     {draft ? <ServiceEditor draft={draft} settings={settings} theme={theme} onClose={() => setDraft(null)} /> : null}

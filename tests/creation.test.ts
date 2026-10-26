@@ -73,3 +73,48 @@ test("a later save affects only subsequent agent creation and invalid storage st
     return true;
   });
 });
+
+test("the public save and create flow preserves stdio arguments and credentials alongside HTTP definitions", async () => {
+  let definition: any;
+  let before: any;
+  let saved: unknown;
+  contribute({ registerSettings(value: any) { definition = value; return { read: async () => ({ status: "ready", values: saved }) }; }, before(_name: string, callback: any) { before = callback; return () => {}; } } as any);
+  const config = { type: "stdio", command: "node", args: ["fixture.mjs", "one argument", "$(not-a-command); 'quoted'", ""], env: { TOKEN: "literal-token-value", VALUE: " spaces preserved " }, alwaysLoad: false };
+  saved = definition.schema.parse({ services: {
+    local: { enabled: true, config },
+    remote: { enabled: true, config: { type: "http", url: "https://example.com/mcp" } },
+    off: { enabled: false, config },
+  } });
+  const result = await before({ request: { config: { provider: "codex", cwd: "/project" } } }, {});
+  assert.deepEqual(result.config.mcpServers.local, config);
+  assert.equal(result.config.mcpServers.remote.type, "http");
+  assert.equal(Object.hasOwn(result.config.mcpServers, "off"), false);
+  for (const invalid of [{ ...config, command: " " }, { ...config, args: [1] }, { ...config, env: { TOKEN: 12 } }, { ...config, cwd: "/other" }]) {
+    assert.equal(definition.schema.safeParse({ services: { local: { enabled: true, config: invalid } } }).success, false);
+  }
+});
+
+test("edits, token rotation, rename, switches and deletion change only subsequent creation snapshots", async () => {
+  let definition: any;
+  let before: any;
+  let saved: any;
+  const hooks: string[] = [];
+  contribute({ registerSettings(value: any) { definition = value; return { read: async () => ({ status: "ready", values: saved }) }; }, before(name: string, callback: any) { hooks.push(name); before = callback; return () => {}; } } as any);
+  const save = (services: unknown) => { saved = definition.schema.parse({ services }); };
+  const create = () => before({ request: { config: { provider: "codex", cwd: "/project" } } }, {});
+  const initial = { enabled: true, config: { type: "http", url: "https://example.com/first", headers: { Authorization: "Bearer first-token" } } };
+  save({ search: initial });
+  const agentA = await create();
+  save({ renamed: { ...initial, config: { ...initial.config, url: "https://example.com/second", headers: { Authorization: "Bearer replacement-token" } } } });
+  const agentB = await create();
+  assert.deepEqual(agentB.config.mcpServers, { renamed: saved.services.renamed.config });
+  save({ renamed: { ...saved.services.renamed, enabled: false } });
+  assert.equal((await create()).config.mcpServers, undefined);
+  save({ renamed: { ...saved.services.renamed, enabled: true } });
+  assert.equal((await create()).config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
+  save({});
+  assert.equal((await create()).config.mcpServers, undefined);
+  assert.deepEqual(agentA.config.mcpServers, { search: initial.config });
+  assert.equal(agentB.config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
+  assert.deepEqual(hooks, ["agent.create"], "Resuming an agent has no manager hook to rerun");
+});

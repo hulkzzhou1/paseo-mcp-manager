@@ -75,20 +75,27 @@ test("an installed community plugin saves validated credentials and rejects stal
     assert.deepEqual((await read() as { values: unknown }).values, values, "Daemon restart must retain saved settings");
     const logs = await client.getPluginLogs("mcp-manager");
     assert.equal(JSON.stringify(logs).includes("fake-token"), false);
-    await t.test("a new Codex agent actually calls the configured authenticated HTTP tool", { skip: process.env.PASEO_TEST_PROVIDER !== "codex", timeout: 90_000 }, async () => {
+    await t.test("a new Codex agent actually calls authenticated HTTP and stdio tools", { skip: process.env.PASEO_TEST_PROVIDER !== "codex", timeout: 90_000 }, async () => {
       const fixture = await startHttpMcp();
       try {
         const current = await read();
         if (current.status !== "ready") assert.fail("Expected saved settings");
-        const configured = await write(current.revision, { services: { local_test: { enabled: true, config: { type: "http", url: fixture.url, headers: { Authorization: "Bearer fake-token" } } } } });
+        const record = join(home, "stdio-events.jsonl");
+        const configured = await write(current.revision, { services: {
+          local_test: { enabled: true, config: { type: "http", url: fixture.url, headers: { Authorization: "Bearer fake-token" } } },
+          local_stdio: { enabled: true, config: { type: "stdio", command: process.execPath, args: [resolve("tests/fixtures/stdio-mcp.mjs"), "one argument", "$(literal); 'quoted'", ""], env: { MCP_FIXTURE_TOKEN: "fake-stdio-token", MCP_FIXTURE_RECORD: record } } },
+        } });
         assert.equal(configured.status, "saved");
         assert.deepEqual(fixture.requests, [], "Saving configuration must not connect to the MCP service");
+        await assert.rejects(readFile(record), { code: "ENOENT" }, "Saving must not launch stdio commands");
         const api = createPaseoApi(client);
         const workspace = await api.workspaces.create({ source: { kind: "directory", path: resolve(".") }, title: "MCP Manager integration" });
         const created = await client.createAgent({ config: { provider: "codex", cwd: resolve("."), modeId: "full-access", title: "HTTP MCP fixture" }, workspaceId: workspace.id });
         const agent = api.agents.ref(created.id);
-        await agent.run("Call the local_test MCP tool fixture_value once, then report its exact output. Do not read files, run shell commands, or use other tools.", { timeoutMs: 60_000 });
+        await agent.run("Call local_test fixture_value and local_stdio fixture_stdio_value once each, then report their exact outputs. Do not read files, run shell commands, or use other tools.", { timeoutMs: 60_000 });
         assert.ok(fixture.calls.includes("fixture_value"), "The fixture must receive a real tool call; a model response alone is insufficient");
+        const events = (await readFile(record, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+        assert.ok(events.some((event) => event.event === "call" && event.valid), "Stdio must receive a real call with exact argument strings and literal env token");
         await agent.archive();
       } finally { await fixture.close(); }
     });

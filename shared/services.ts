@@ -4,12 +4,18 @@ import { z } from "zod";
 export const serviceName = z.string().regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens or underscores")
   .refine((name) => !["paseo", "__proto__", "constructor", "prototype"].includes(name), "This name is reserved");
 
-export const connection = z.object({
+export const connection = z.discriminatedUnion("type", [z.object({
   type: z.literal("http"),
   url: z.url({ protocol: /^https?$/ }),
   headers: z.record(z.string(), z.string()).optional(),
   alwaysLoad: z.boolean().optional(),
-}).strict();
+}).strict(), z.object({
+  type: z.literal("stdio"),
+  command: z.string().refine((value) => value.trim().length > 0, "A command is required"),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  alwaysLoad: z.boolean().optional(),
+}).strict()]);
 
 export const services = defineSettings({
   id: "connections",
