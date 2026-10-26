@@ -48,3 +48,28 @@ test("the settings save contract rejects malformed URLs without throwing or echo
     assert.equal(String(result.error).includes("secret-value"), false);
   }
 });
+
+test("unsupported providers are left untouched without reading managed settings", async () => {
+  let before: any;
+  contribute({ registerSettings() { return { read() { assert.fail("Unsupported provider must not read MCP settings"); } }; }, before(_name: string, callback: any) { before = callback; return () => {}; } } as any);
+  const request = { config: { provider: "pi", cwd: "/project" } };
+  assert.equal(await before({ request }, {}), request);
+});
+
+test("a later save affects only subsequent agent creation and invalid storage stops supported creation safely", async () => {
+  let before: any;
+  let state: any = { status: "ready", values: { services: { search: { enabled: true, config: { type: "http", url: "https://example.com/first" } } } } };
+  contribute({ registerSettings() { return { read: async () => state }; }, before(_name: string, callback: any) { before = callback; return () => {}; } } as any);
+  const request = { config: { provider: "codex", cwd: "/project" } };
+  const first = await before({ request }, {});
+  state = { status: "ready", values: { services: { search: { enabled: true, config: { type: "http", url: "https://example.com/second" } } } } };
+  const second = await before({ request }, {});
+  assert.equal(first.config.mcpServers.search.url, "https://example.com/first");
+  assert.equal(second.config.mcpServers.search.url, "https://example.com/second");
+  state = { status: "invalid", error: "credential-that-must-not-be-logged" };
+  await assert.rejects(before({ request }, {}), (error: Error) => {
+    assert.match(error.message, /Open MCP Manager/);
+    assert.equal(error.message.includes("credential-that-must-not-be-logged"), false);
+    return true;
+  });
+});

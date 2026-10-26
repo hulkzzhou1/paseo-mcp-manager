@@ -2,7 +2,9 @@ import { createServer } from "node:http";
 
 export async function startHttpMcp() {
   const calls: string[] = [];
+  const requests: string[] = [];
   const server = createServer(async (request, response) => {
+    requests.push(request.method ?? "unknown");
     if (request.headers.authorization !== "Bearer fake-token") { response.writeHead(401).end(); return; }
     if (request.method !== "POST") { response.writeHead(405, { Allow: "POST" }).end(); return; }
     let body = "";
@@ -26,5 +28,5 @@ export async function startHttpMcp() {
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Fixture did not bind a TCP port");
-  return { url: `http://127.0.0.1:${address.port}/mcp`, calls, close: () => new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done())) };
+  return { url: `http://127.0.0.1:${address.port}/mcp`, calls, requests, close: () => new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done())) };
 }

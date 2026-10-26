@@ -47,8 +47,8 @@ export function Manager({ theme, layout }: PluginScreenProps) {
       <Text style={{ color: theme.colors.foregroundMuted }}>Saved connections apply only to new agents. Existing agents keep their configuration.</Text>
       <Text style={{ color: theme.colors.foregroundMuted }}>Initial preview: HTTP · Codex. Enabled means configured, not connected.</Text>
     </View>
-    {settings.status === "loading" ? <Text style={text}>Loading connections…</Text> : settings.status !== "ready" ? <SettingsSection title="Connections unavailable">
-      <Text accessibilityRole="alert" style={text}>The saved configuration could not be loaded. It has not been reset.</Text>
+    {settings.status === "loading" ? <Text style={text}>Loading connections…</Text> : settings.status !== "ready" ? <SettingsSection title={settings.status === "invalid" ? "Saved configuration is invalid" : "Unable to read connections"}>
+      <Text accessibilityRole="alert" style={text}>{settings.status === "invalid" ? "The saved values do not match the configuration format. Correct the stored configuration before creating agents. Your data has not been reset." : "The daemon could not be reached or the read failed. Reconnect and try again. Your data has not been reset."}</Text>
       <SettingsAction label="Read saved configuration again" actionLabel="Reload" onPress={() => void settings.reload()} />
     </SettingsSection> : <>
       <SettingsSection title={`Services (${Object.keys(settings.values.services).length})`}>

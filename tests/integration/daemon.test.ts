@@ -67,6 +67,7 @@ test("an installed community plugin saves validated credentials and rejects stal
         if (current.status !== "ready") assert.fail("Expected saved settings");
         const configured = await write(current.revision, { services: { local_test: { enabled: true, config: { type: "http", url: fixture.url, headers: { Authorization: "Bearer fake-token" } } } } });
         assert.equal(configured.status, "saved");
+        assert.deepEqual(fixture.requests, [], "Saving configuration must not connect to the MCP service");
         const api = createPaseoApi(client);
         const workspace = await api.workspaces.create({ source: { kind: "directory", path: resolve(".") }, title: "MCP Manager integration" });
         const created = await client.createAgent({ config: { provider: "codex", cwd: resolve("."), modeId: "full-access", title: "HTTP MCP fixture" }, workspaceId: workspace.id });
