@@ -30,4 +30,6 @@ These are web-client checks. Physical iOS/Android keyboard and screen-reader tes
 
 The plugin is distributed as public Git source with a pinned release tag. It needs no build commands or runtime dependency installation; Paseo supplies SDK, React and Zod. The package allowlist excludes tests and development dependencies. The manifest declares English and Chinese listing text, minimum Paseo version, and real interface media.
 
-Public-source installation and community-registry status are tracked in the release and submission records. A submission alone does not establish community acceptance.
+Public Git-source installation at commit `b0fc599` passed on a fresh community daemon (15.1 seconds): plugin status was running; settings, revision checks, reload, disable/re-enable, restart and removal checks passed without using local source dependencies.
+
+Community-registry status is tracked in the release and submission records. A submission alone does not establish community acceptance.
