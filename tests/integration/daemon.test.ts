@@ -75,12 +75,14 @@ test("an installed community plugin saves validated credentials and rejects stal
     assert.deepEqual((await read() as { values: unknown }).values, values, "Daemon restart must retain saved settings");
     const logs = await client.getPluginLogs("mcp-manager");
     assert.equal(JSON.stringify(logs).includes("fake-token"), false);
-    await t.test("a new Codex agent actually calls authenticated HTTP and stdio tools", { skip: process.env.PASEO_TEST_PROVIDER !== "codex", timeout: 90_000 }, async () => {
+    const providers = process.env.PASEO_TEST_PROVIDER === "all" ? ["codex", "claude", "manager-codex"] : [process.env.PASEO_TEST_PROVIDER ?? "codex"];
+    if (providers.includes("manager-codex")) await client.patchDaemonConfig({ providers: { "manager-codex": { extends: "codex", label: "MCP Manager Codex test" } } });
+    for (const provider of providers) await t.test(`a new ${provider} agent actually calls authenticated HTTP and stdio tools`, { skip: !process.env.PASEO_TEST_PROVIDER, timeout: 90_000 }, async () => {
       const fixture = await startHttpMcp();
       try {
         const current = await read();
         if (current.status !== "ready") assert.fail("Expected saved settings");
-        const record = join(home, "stdio-events.jsonl");
+        const record = join(home, `${provider}-stdio-events.jsonl`);
         const configured = await write(current.revision, { services: {
           local_test: { enabled: true, config: { type: "http", url: fixture.url, headers: { Authorization: "Bearer fake-token" } } },
           local_stdio: { enabled: true, config: { type: "stdio", command: process.execPath, args: [resolve("tests/fixtures/stdio-mcp.mjs"), "one argument", "$(literal); 'quoted'", ""], env: { MCP_FIXTURE_TOKEN: "fake-stdio-token", MCP_FIXTURE_RECORD: record } } },
@@ -90,14 +92,33 @@ test("an installed community plugin saves validated credentials and rejects stal
         await assert.rejects(readFile(record), { code: "ENOENT" }, "Saving must not launch stdio commands");
         const api = createPaseoApi(client);
         const workspace = await api.workspaces.create({ source: { kind: "directory", path: resolve(".") }, title: "MCP Manager integration" });
-        const created = await client.createAgent({ config: { provider: "codex", cwd: resolve("."), modeId: "full-access", title: "HTTP MCP fixture" }, workspaceId: workspace.id });
+        const created = await client.createAgent({ config: { provider, ...(provider === "claude" && process.env.PASEO_TEST_CLAUDE_MODEL ? { model: process.env.PASEO_TEST_CLAUDE_MODEL } : {}), cwd: resolve("."), modeId: provider === "claude" ? "bypassPermissions" : "full-access", title: "HTTP MCP fixture" }, workspaceId: workspace.id });
         const agent = api.agents.ref(created.id);
-        await agent.run("Call local_test fixture_value and local_stdio fixture_stdio_value once each, then report their exact outputs. Do not read files, run shell commands, or use other tools.", { timeoutMs: 60_000 });
-        assert.ok(fixture.calls.includes("fixture_value"), "The fixture must receive a real tool call; a model response alone is insufficient");
+        const outcome = await agent.run("Call local_test fixture_value and local_stdio fixture_stdio_value once each, then report their exact outputs. Do not read files, run shell commands, or use other tools.", { timeoutMs: 60_000 });
+        assert.equal(outcome.status, "idle", `Provider failed before tool verification: ${JSON.stringify(outcome.error)}`);
+        assert.ok(fixture.calls.includes("fixture_value"), `The fixture must receive a real tool call. Last message: ${outcome.lastMessage ?? "(none)"}`);
         const events = (await readFile(record, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
         assert.ok(events.some((event) => event.event === "call" && event.valid), "Stdio must receive a real call with exact argument strings and literal env token");
         await agent.archive();
       } finally { await fixture.close(); }
+    });
+    await t.test("isolated legacy cutover removes overlapping injection before manager switches take effect", async () => {
+      assert.equal((await client.installDirectoryPlugin(resolve("tests/fixtures/legacy-plugin"))).status, "running");
+      assert.equal((await client.installDirectoryPlugin(resolve("tests/fixtures/capture-plugin"))).status, "running");
+      const probe = async () => {
+        await assert.rejects(client.createAgent({ config: { provider: "codex", cwd: resolve(".") } }), /MCP_MANAGER_CAPTURE_ONLY/);
+        return await client.invokePluginRpc("zzz-capture-fixture", "captured", {}) as Record<string, { url: string }>;
+      };
+      const current = await read();
+      assert.equal((await write(current.revision, { services: { local_test: { enabled: false, config: { type: "http", url: "http://127.0.0.1:1/new" } } } })).status, "saved");
+      assert.equal((await probe()).local_test?.url, "http://127.0.0.1:1/old", "The old injector can hide a manager disable");
+      await client.disablePlugin("aaa-legacy-fixture");
+      assert.deepEqual(await probe(), {});
+      const latest = await read();
+      assert.equal((await write(latest.revision, { services: { local_test: { enabled: true, config: { type: "http", url: "http://127.0.0.1:1/new" } } } })).status, "saved");
+      assert.equal((await probe()).local_test?.url, "http://127.0.0.1:1/new");
+      await client.removePlugin("aaa-legacy-fixture");
+      await client.removePlugin("zzz-capture-fixture");
     });
     await client.removePlugin("mcp-manager");
     assert.equal((await client.installDirectoryPlugin(resolve("."))).status, "running");

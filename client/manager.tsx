@@ -127,7 +127,7 @@ export function Manager({ theme, layout }: PluginScreenProps) {
     <View style={{ gap: 6 }}>
       <Text accessibilityRole="header" style={{ ...text, fontSize: 24, fontWeight: "600" }}>MCP connections</Text>
       <Text style={{ color: theme.colors.foregroundMuted }}>Saved connections apply only to new agents. Existing agents keep their configuration.</Text>
-      <Text style={{ color: theme.colors.foregroundMuted }}>HTTP / stdio · Codex. Enabled means configured, not connected. Saving does not connect or start commands.</Text>
+      <Text style={{ color: theme.colors.foregroundMuted }}>HTTP / stdio · Codex, Claude and their provider aliases. Enabled means configured, not connected. Saving does not connect or start commands.</Text>
     </View>
     {settings.status === "loading" ? <Text style={text}>Loading connections…</Text> : settings.status !== "ready" ? <SettingsSection title={settings.status === "invalid" ? "Saved configuration is invalid" : "Unable to read connections"}>
       <Text accessibilityRole="alert" style={text}>{settings.status === "invalid" ? "The saved values do not match the configuration format. Correct the stored configuration before creating agents. Your data has not been reset." : "The daemon could not be reached or the read failed. Reconnect and try again. Your data has not been reset."}</Text>

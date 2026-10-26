@@ -1,41 +1,56 @@
 # MCP Manager for Paseo
 
-在 Paseo 中统一管理外部 MCP 服务，并通过插件钩子将启用的连接配置提供给新建 Agent。
+Manage HTTP and stdio MCP services for **new Codex and Claude agents**, including provider aliases. Uses public community Paseo plugin interfaces; requires daemon and client 0.13.2 or later.
 
-## 计划范围
+[中文介绍](OVERVIEW.zh-CN.md) · [Plugin overview](OVERVIEW.md) · [Specification](https://github.com/hulkzzhou1/paseo-mcp-manager/issues/1)
 
-- 添加、编辑、删除和启停 HTTP／stdio MCP 服务。
-- 提供表单与 JSON 编辑模式。
-- 按 daemon 保存配置，并保留 Agent 自带的同名连接配置优先级。
-- 沿用 `agent.create` 钩子分发配置，由 provider 直接连接 MCP 服务。
-- 首期覆盖 Codex（含自定义别名）和 Claude，token 直接保存在配置的 `headers`／`env` 中，不读取额外的 token 文件。
+## Install and use
 
-## 当前状态
+Enable trusted plugins on your daemon, then install the public source:
 
-当前开发切片：添加 HTTP 服务、官方 settings 持久化及 Codex 创建时注入。完整编辑、stdio 和 Claude／别名接入按后续子任务推进。
+```bash
+paseo plugin install github:hulkzzhou1/paseo-mcp-manager --ref v0.1.0
+```
 
-首期配置变更仅对新建 Agent 生效，不实时更新已有 Agent 的 MCP 配置。各 provider 的兼容范围基于最新社区版 Paseo 验证。
+Open **MCP Manager** in the sidebar. Add a service, select HTTP or stdio, enter its values, then save. Create a new Codex or Claude agent to use its tools. Saving does not connect, launch commands or verify credentials.
 
-已确认方案见 [MCP Manager 实施方案](docs/plans/mcp-manager.md)。
+- HTTP: HTTP/HTTPS URL and optional string-valued headers, including the complete authentication prefix.
+- stdio: executable command, a JSON array of argument strings, and a string-valued environment map. Commands run on the daemon in the agent's context; arguments are not split or evaluated as shell text.
+- Form and connection JSON modes support `alwaysLoad`; names and enabled state are managed separately.
+- An agent's explicit same-named definition wins in full. Existing agents are unchanged when services or tokens change.
+- Stale saves are rejected. Keep the draft, reload, and explicitly adopt the latest version before saving again.
 
-正式规格见 [GitHub Issue #1](https://github.com/hulkzzhou1/paseo-mcp-manager/issues/1)。
+Tokens are literal headers/env values in ordinary host-scoped JSON (restricted file permissions). Authorized editing clients can read them. Providers receive connection configuration; HTTP services receive the configured headers, and stdio processes receive the configured env. Replace expired tokens manually. Plugin reload, disable/re-enable and daemon restart preserve settings; **uninstall deletes the installation's settings**.
 
-连接凭据与企业内部服务配置保留在本机，不提交到此仓库。
+The first release covers HTTP/stdio with Codex and Claude. OAuth, token-file lookup, SSE editing, other providers and live updates to existing agents are outside its scope.
 
-## 本地开发
+## Move from a temporary injector
 
-需要社区版 Paseo 0.13.2 或更高版本，以及支持 TypeScript 类型剥离的 Node.js（开发验证使用 Node 24）。
+1. On the daemon machine, review which temporary connections are still needed. Keep actual URLs, paths and credentials on that machine.
+2. Review any independent browser-discovery or prompt guidance in the old plugin. Arrange a separate replacement if it is still needed; MCP Manager only manages connections.
+3. Enter each required definition in MCP Manager. If the old plugin reads a token file, enter the current token directly in headers/env instead of copying the file-reading logic.
+4. Remove overlapping injection from the old plugin before testing manager edits or disable switches. A second injector can supply the same name and hide the manager's changes.
+5. Verify replacement tools with new agents. Disable the temporary plugin once all required connections and independent guidance have a replacement. Preserve any needed configuration before removing an installation.
+
+MCP Manager does not copy production definitions, alter old agents, read credential files or automatically disable other plugins.
+
+## Development and verification
+
+Use Node.js 24 and a community Paseo CLI on PATH:
 
 ```bash
 npm install --include=dev
 npm run typecheck
 npm test
 npm run test:integration
-paseo plugin install /absolute/path/to/paseo-mcp-manager
 ```
 
-集成测试创建并清理一个只监听本机的独立测试 daemon，不修改日常 daemon 的配置。设置 `PASEO_TEST_PROVIDER=codex` 可额外运行真实 Codex 工具调用测试，需要本机已完成 provider 配置和鉴权，会产生 provider 调用用量。
+The integration suite starts and cleans up an isolated, loopback-only daemon. It checks public settings RPCs, revision conflicts, lifecycle retention, uninstall behavior and a dummy legacy cutover without touching the daily daemon. Optional real-provider acceptance requires existing provider authentication and incurs provider usage:
 
-从侧边栏打开 MCP Manager，填写服务名称、HTTP URL 和 headers JSON。token 直接填写为 header 值，包括服务要求的认证前缀。保存只校验配置；新建受支持的 Agent 后才由 provider 连接服务。
+```bash
+PASEO_TEST_PROVIDER=codex npm run test:integration
+PASEO_TEST_PROVIDER=claude npm run test:integration
+PASEO_TEST_PROVIDER=all npm run test:integration
+```
 
-配置使用 host-scoped 插件 settings，以权限受限的普通 JSON 保存。授权编辑端能读取完整值，列表和日志不展示凭据。插件卸载会删除该安装的 settings；reload、停用和重启保留配置。
+`all` checks Codex, Claude and a representative Codex alias, each calling local HTTP and stdio fixtures. Fixtures use fake tokens; stdio verifies argument strings and environment values. Tests and development dependencies are excluded from the package contents. See [validation notes](docs/validation.md) for the recorded release checks.

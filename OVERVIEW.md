@@ -1,11 +1,11 @@
 # MCP Manager
 
-Manage external MCP connections for new Paseo agents from a sidebar screen.
+Manage HTTP and stdio MCP connections from a Paseo sidebar screen. Add, edit, rename, enable, disable or delete services using a form or a single-service JSON editor. Each daemon keeps its own definitions.
 
-This development version supports adding HTTP connections for Codex. Save a service name, an HTTP or HTTPS URL, and optional headers. Enter tokens directly in the headers, including any authentication prefix required by the service. Saving validates the definition without contacting the service. The provider connects when a new supported agent is created.
+Saved, enabled connections are supplied to newly created Codex and Claude agents, including custom providers whose inheritance resolves to either provider. An agent's explicit connection takes precedence over a managed service with the same name. Existing agents keep their configuration, including when resumed. Enabled means configured, not connected; saving validates values without contacting a service or starting a command.
 
-Each daemon stores its own configuration. Existing agents keep the configuration supplied when they were created. An agent's explicit same-named connection takes precedence over the managed definition.
+Requires community Paseo 0.13.2 or later on both the daemon and client, and a configured, authenticated Codex or Claude provider. HTTP services need a URL and optional string headers. Stdio services need an executable available on the daemon, optional arguments and environment values; they run in the agent's execution context. Argument strings are preserved without shell splitting. The optional `alwaysLoad` setting remains provider dependent.
 
-Requires community Paseo 0.13.2 or later and a configured Codex provider. Configuration, including tokens, is stored as ordinary host-side JSON with restricted file permissions. Authorized editing clients can read those values. Connection details and credentials are supplied to the selected provider and configured MCP service; local storage does not keep them exclusively on the host.
+Enter tokens directly in headers or environment values, including any required authentication prefix. They are stored as ordinary host-side JSON protected by file permissions, not encrypted secret storage. Authorized editing clients can read complete values. Connection configuration is passed to the selected provider; HTTP requests send configured headers to the service, and stdio processes receive configured environment values. Lists and plugin diagnostics omit connection values. Replace expired tokens manually for future agents.
 
-Reloading or disabling the plugin preserves its settings. Removing the plugin deletes its settings. The manager does not log in to services or refresh tokens; replace expired values manually for subsequently created agents.
+Conflicting saves preserve the draft and reject the stale write. Reload the current settings, then explicitly adopt that version with your draft before retrying. Reload, disable/re-enable and daemon restart retain settings. Uninstalling the plugin deletes that installation's settings, so preserve needed definitions first.

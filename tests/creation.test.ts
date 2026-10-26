@@ -118,3 +118,44 @@ test("edits, token rotation, rename, switches and deletion change only subsequen
   assert.equal(agentB.config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
   assert.deepEqual(hooks, ["agent.create"], "Resuming an agent has no manager hook to rerun");
 });
+
+test("Codex and Claude roots and inherited aliases share filtering and explicit precedence", async () => {
+  let definition: any;
+  let before: any;
+  let saved: any;
+  contribute({ registerSettings(value: any) { definition = value; return { read: async () => ({ status: "ready", values: saved }) }; }, before(_name: string, callback: any) { before = callback; return () => {}; } } as any);
+  saved = definition.schema.parse({ services: {
+    local: { enabled: true, config: { type: "stdio", command: "node", args: ["space here"], env: { TOKEN: "fake-token" } } },
+    same: { enabled: true, config: { type: "http", url: "https://example.com/managed", headers: { Authorization: "managed" } } },
+    off: { enabled: false, config: { type: "http", url: "https://example.com/off" } },
+  } });
+  const context = { paseo: { config: { get: async () => ({ config: { providers: { codex_alias: { extends: "codex_chain" }, codex_chain: { extends: "codex" }, claude_alias: { extends: "claude" } } } }) } } };
+  for (const provider of ["codex", "claude", "codex_alias", "claude_alias"]) {
+    const request = { config: { provider, cwd: "/project", systemPrompt: "unchanged", mcpServers: { same: { type: "http", url: "https://example.com/explicit" } } }, env: { KEEP: "unchanged" } };
+    const original = structuredClone(request);
+    const result = await before({ request }, context);
+    assert.deepEqual(result.config.mcpServers, { local: saved.services.local.config, same: original.config.mcpServers.same });
+    assert.equal(result.config.systemPrompt, original.config.systemPrompt);
+    assert.deepEqual(result.env, original.env);
+    assert.deepEqual(request, original);
+  }
+});
+
+test("unresolved and cyclic aliases skip injection with sanitized reasons", async () => {
+  let before: any;
+  contribute({ registerSettings() { return { read() { assert.fail("Invalid inheritance must not read managed connections"); } }; }, before(_name: string, callback: any) { before = callback; return () => {}; } } as any);
+  const warnings: unknown[][] = [];
+  const warn = console.warn;
+  console.warn = (...args) => { warnings.push(args); };
+  try {
+    const context = { paseo: { config: { get: async () => ({ config: { providers: { a: { extends: "b", env: { TOKEN: "private-value" } }, b: { extends: "a" }, missing: { extends: "unknown" } } } }) } } };
+    for (const provider of ["a", "missing", "unknown"]) {
+      const request = { config: { provider, cwd: "/project" } };
+      assert.equal(await before({ request }, context), request);
+    }
+    assert.equal(warnings.length, 3);
+    assert.equal(JSON.stringify(warnings).includes("private-value"), false);
+    assert.match(JSON.stringify(warnings), /cycle/);
+    assert.match(JSON.stringify(warnings), /unresolved/);
+  } finally { console.warn = warn; }
+});
