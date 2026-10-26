@@ -53,4 +53,4 @@ PASEO_TEST_PROVIDER=claude npm run test:integration
 PASEO_TEST_PROVIDER=all npm run test:integration
 ```
 
-`all` checks Codex, Claude and a representative Codex alias, each calling local HTTP and stdio fixtures. Fixtures use fake tokens; stdio verifies argument strings and environment values. Tests and development dependencies are excluded from the package contents. See [validation notes](docs/validation.md) for the recorded release checks.
+`all` checks Codex, Claude and a representative Codex alias, each calling local HTTP and stdio fixtures. If your Claude gateway requires a specific model, set `PASEO_TEST_CLAUDE_MODEL` to one available to your account; this changes only the disposable test agent. Fixtures use fake tokens; stdio verifies argument strings and environment values. Tests and development dependencies are excluded from the package contents. See [validation notes](docs/validation.md) for the recorded release checks.

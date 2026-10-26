@@ -101,21 +101,24 @@ test("edits, token rotation, rename, switches and deletion change only subsequen
   const hooks: string[] = [];
   contribute({ registerSettings(value: any) { definition = value; return { read: async () => ({ status: "ready", values: saved }) }; }, before(name: string, callback: any) { hooks.push(name); before = callback; return () => {}; } } as any);
   const save = (services: unknown) => { saved = definition.schema.parse({ services }); };
-  const create = () => before({ request: { config: { provider: "codex", cwd: "/project" } } }, {});
-  const initial = { enabled: true, config: { type: "http", url: "https://example.com/first", headers: { Authorization: "Bearer first-token" } } };
-  save({ search: initial });
-  const agentA = await create();
-  save({ renamed: { ...initial, config: { ...initial.config, url: "https://example.com/second", headers: { Authorization: "Bearer replacement-token" } } } });
-  const agentB = await create();
-  assert.deepEqual(agentB.config.mcpServers, { renamed: saved.services.renamed.config });
-  save({ renamed: { ...saved.services.renamed, enabled: false } });
-  assert.equal((await create()).config.mcpServers, undefined);
-  save({ renamed: { ...saved.services.renamed, enabled: true } });
-  assert.equal((await create()).config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
-  save({});
-  assert.equal((await create()).config.mcpServers, undefined);
-  assert.deepEqual(agentA.config.mcpServers, { search: initial.config });
-  assert.equal(agentB.config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
+  const context = { paseo: { config: { get: async () => ({ config: { providers: { "test-codex": { extends: "codex" }, "test-claude": { extends: "claude" } } } }) } } };
+  for (const provider of ["codex", "claude", "test-codex", "test-claude"]) {
+    const create = () => before({ request: { config: { provider, cwd: "/project" } } }, context);
+    const initial = { enabled: true, config: { type: "http", url: "https://example.com/first", headers: { Authorization: "Bearer first-token" } } };
+    save({ search: initial });
+    const agentA = await create();
+    save({ renamed: { ...initial, config: { ...initial.config, url: "https://example.com/second", headers: { Authorization: "Bearer replacement-token" } } } });
+    const agentB = await create();
+    assert.deepEqual(agentB.config.mcpServers, { renamed: saved.services.renamed.config });
+    save({ renamed: { ...saved.services.renamed, enabled: false } });
+    assert.equal((await create()).config.mcpServers, undefined);
+    save({ renamed: { ...saved.services.renamed, enabled: true } });
+    assert.equal((await create()).config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
+    save({});
+    assert.equal((await create()).config.mcpServers, undefined);
+    assert.deepEqual(agentA.config.mcpServers, { search: initial.config });
+    assert.equal(agentB.config.mcpServers.renamed.headers.Authorization, "Bearer replacement-token");
+  }
   assert.deepEqual(hooks, ["agent.create"], "Resuming an agent has no manager hook to rerun");
 });
 
@@ -129,8 +132,8 @@ test("Codex and Claude roots and inherited aliases share filtering and explicit 
     same: { enabled: true, config: { type: "http", url: "https://example.com/managed", headers: { Authorization: "managed" } } },
     off: { enabled: false, config: { type: "http", url: "https://example.com/off" } },
   } });
-  const context = { paseo: { config: { get: async () => ({ config: { providers: { codex_alias: { extends: "codex_chain" }, codex_chain: { extends: "codex" }, claude_alias: { extends: "claude" } } } }) } } };
-  for (const provider of ["codex", "claude", "codex_alias", "claude_alias"]) {
+  const context = { paseo: { config: { get: async () => ({ config: { providers: { "codex-alias": { extends: "codex-chain" }, "codex-chain": { extends: "codex" }, "claude-alias": { extends: "claude" } } } }) } } };
+  for (const provider of ["codex", "claude", "codex-alias", "claude-alias"]) {
     const request = { config: { provider, cwd: "/project", systemPrompt: "unchanged", mcpServers: { same: { type: "http", url: "https://example.com/explicit" } } }, env: { KEEP: "unchanged" } };
     const original = structuredClone(request);
     const result = await before({ request }, context);
