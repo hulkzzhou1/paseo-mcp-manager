@@ -22,9 +22,10 @@ test("an installed community plugin saves validated credentials and rejects stal
   await writeFile(join(home, "config.json"), JSON.stringify({ version: 1, daemon: { listen: `127.0.0.1:${port}`, relay: { enabled: false } }, pluginsEnabled: true }), { mode: 0o600 });
   const env: NodeJS.ProcessEnv = { ...process.env, PASEO_HOME: home };
   for (const key of ["PASEO_AGENT_ID", "PASEO_AGENT_CWD", "PASEO_HOST", "PASEO_PASSWORD"]) delete env[key];
-  const daemon = spawn("paseo", ["daemon", "run", "--home", home], { env, stdio: "ignore" });
-  const client = createHostClient(`127.0.0.1:${port}`, { clientId: "mcp-manager-integration", clientType: "cli", appVersion: "0.13.2", reconnect: { enabled: false }, localCredential: async () => (await readFile(join(home, "local-credential"), "utf8")).trim() });
-  try {
+  let daemon = spawn("paseo", ["daemon", "run", "--home", home], { env, stdio: "ignore" });
+  const makeClient = () => createHostClient(`127.0.0.1:${port}`, { clientId: "mcp-manager-integration", clientType: "cli", appVersion: "0.13.2", reconnect: { enabled: false }, localCredential: async () => (await readFile(join(home, "local-credential"), "utf8")).trim() });
+  let client = makeClient();
+  const ready = async () => {
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
         const response = await fetch(`http://127.0.0.1:${port}/api/health`);
@@ -35,6 +36,9 @@ test("an installed community plugin saves validated credentials and rejects stal
       if (attempt === 99) assert.fail("Test daemon did not become ready");
       await delay(100);
     }
+  };
+  try {
+    await ready();
     await client.connect();
     const plugin = await client.installDirectoryPlugin(resolve("."));
     assert.equal(plugin.status, "running");
@@ -58,6 +62,17 @@ test("an installed community plugin saves validated credentials and rejects stal
     const invalid = await write(latest.revision, { services: { bad: { enabled: true, config: { type: "http", url: "invalid" } } } });
     assert.equal(invalid.status, "invalid");
     assert.deepEqual((await read()).status, "ready");
+    assert.equal((await client.reloadPlugin("mcp-manager")).status, "running");
+    assert.equal((await client.disablePlugin("mcp-manager")).status, "disabled");
+    assert.equal((await client.enablePlugin("mcp-manager")).status, "running");
+    assert.deepEqual((await read() as { values: unknown }).values, values);
+    await client.close();
+    execFileSync("paseo", ["daemon", "stop", "--home", home, "--timeout", "10"], { env, stdio: "ignore", timeout: 15_000 });
+    daemon = spawn("paseo", ["daemon", "run", "--home", home], { env, stdio: "ignore" });
+    await ready();
+    client = makeClient();
+    await client.connect();
+    assert.deepEqual((await read() as { values: unknown }).values, values, "Daemon restart must retain saved settings");
     const logs = await client.getPluginLogs("mcp-manager");
     assert.equal(JSON.stringify(logs).includes("fake-token"), false);
     await t.test("a new Codex agent actually calls the configured authenticated HTTP tool", { skip: process.env.PASEO_TEST_PROVIDER !== "codex", timeout: 90_000 }, async () => {
@@ -77,6 +92,9 @@ test("an installed community plugin saves validated credentials and rejects stal
         await agent.archive();
       } finally { await fixture.close(); }
     });
+    await client.removePlugin("mcp-manager");
+    assert.equal((await client.installDirectoryPlugin(resolve("."))).status, "running");
+    assert.deepEqual((await read() as { values: unknown }).values, { services: {} }, "Removal deletes this installation settings");
   } finally {
     await client.close();
     try { execFileSync("paseo", ["daemon", "stop", "--home", home, "--timeout", "10"], { env, stdio: "ignore", timeout: 15_000 }); } finally { daemon.kill(); }
