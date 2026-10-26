@@ -1,0 +1,25 @@
+{
+  "name": "paseo-mcp-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manage HTTP and stdio MCP connections for new Paseo agents.",
+  "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/hulkzzhou1/paseo-mcp-manager.git" },
+  "files": ["paseo-plugin.json", "OVERVIEW.md", "OVERVIEW.*.md", "index.client.tsx", "index.server.ts", "client/", "server/", "shared/", "assets/"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:integration": "node --experimental-strip-types --test tests/integration/*.test.ts"
+  },
+  "devDependencies": {
+    "@getpaseo/client": "0.13.2",
+    "@getpaseo/plugin": "0.13.2",
+    "@tanstack/react-query": "^5.90.11",
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.2.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "mcp-manager",
+  "name": "MCP Manager",
+  "description": "Manage HTTP and stdio MCP connections for new Paseo agents.",
+  "translations": {
+    "zh-CN": { "name": "MCP 管理", "description": "为新建 Paseo Agent 管理 HTTP 和 stdio MCP 连接。" }
+  },
+  "requirements": { "paseo": ">=0.13.2" }
+}

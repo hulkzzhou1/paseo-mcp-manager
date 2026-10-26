@@ -12,7 +12,7 @@
 
 ## 当前状态
 
-项目已初始化，功能尚未实现。现有本地 `iwiki-mcp` 插件作为接入模式参考。
+当前开发切片：添加 HTTP 服务、官方 settings 持久化及 Codex 创建时注入。完整编辑、stdio 和 Claude／别名接入按后续子任务推进。
 
 首期配置变更仅对新建 Agent 生效，不实时更新已有 Agent 的 MCP 配置。各 provider 的兼容范围基于最新社区版 Paseo 验证。
 
@@ -21,3 +21,21 @@
 正式规格见 [GitHub Issue #1](https://github.com/hulkzzhou1/paseo-mcp-manager/issues/1)。
 
 连接凭据与企业内部服务配置保留在本机，不提交到此仓库。
+
+## 本地开发
+
+需要社区版 Paseo 0.13.2 或更高版本，以及支持 TypeScript 类型剥离的 Node.js（开发验证使用 Node 24）。
+
+```bash
+npm install --include=dev
+npm run typecheck
+npm test
+npm run test:integration
+paseo plugin install /absolute/path/to/paseo-mcp-manager
+```
+
+集成测试创建并清理一个只监听本机的独立测试 daemon，不修改日常 daemon 的配置。设置 `PASEO_TEST_PROVIDER=codex` 可额外运行真实 Codex 工具调用测试，需要本机已完成 provider 配置和鉴权，会产生 provider 调用用量。
+
+从侧边栏打开 MCP Manager，填写服务名称、HTTP URL 和 headers JSON。token 直接填写为 header 值，包括服务要求的认证前缀。保存只校验配置；新建受支持的 Agent 后才由 provider 连接服务。
+
+配置使用 host-scoped 插件 settings，以权限受限的普通 JSON 保存。授权编辑端能读取完整值，列表和日志不展示凭据。插件卸载会删除该安装的 settings；reload、停用和重启保留配置。
