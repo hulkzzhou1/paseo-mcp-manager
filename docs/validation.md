@@ -58,3 +58,13 @@ Recorded 2026-10-28 against community Paseo 0.13.2. Compared the actual built-in
 - Checked 1120px desktop layout and 390px/320px compact layouts with 15 fake services, including a long name. Names truncate within their column while switches/actions stay aligned. At 390×844, approximately 12 compact rows are visible. Checked English and Simplified Chinese, light/dark themes, and the compact section information tip. Release media use sample definitions and contain no production configuration.
 
 Paid provider calls were not repeated for this UI-only update. Physical iOS/Android keyboard and screen-reader behavior remains untested.
+
+# v0.1.3 pointer highlight regression
+
+Recorded 2026-10-28 against community Paseo 0.13.2 on a disposable daemon with two fake services.
+
+- Before the fix, clicking a service and cancelling its modal left an accent border even though the row was neither focused nor `:focus-visible`. The browser assertion rejecting any retained row border failed. Opening a modal disables its originating control, so a component-owned focus flag can miss blur.
+- Removed the redundant focus flags from service edit controls, switches and shared actions. Keyboard focus uses Paseo's existing `:focus-visible` outline. Pressing an editor/action clears its hover flag before the modal can disable the control. No DOM access, new dependency or settings change was needed.
+- After the fix, real pointer clicks opened/cancelled the first, second and first editors in sequence. Moving to the section information button left both edit borders transparent and both row backgrounds equal; hovering the first row changed only its background. The same retained-border assertion passed.
+- The server-browser plugin verified real Tab navigation: the service edit button and switch retain the host keyboard outline. The app browser supplied computed-style assertions because server-browser has no DOM-evaluation or hover RPC.
+- Typecheck and all ten contract/localization tests passed. This patch changes client interaction only; paid provider calls and physical mobile/screen-reader testing were not repeated.
