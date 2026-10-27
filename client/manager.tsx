@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { useSettings, useTranslation, type PluginScreenProps, type SettingsState } from "@getpaseo/plugin/client";
 import { Modal, ScrollView, SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch, TextInput } from "@getpaseo/plugin/client/ui";
+import { ServiceRow } from "./service-row.tsx";
 import { Action } from "./action.tsx";
 import { messages, type MessageKey } from "./messages.ts";
 import { connection, services, type ServiceValues } from "../shared/services.ts";
@@ -29,7 +30,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
   const [saveFailed, setSaveFailed] = useState(false);
   const blocked = settings.saving || settings.status !== "ready";
   const textStyle = { color: theme.colors.foreground };
-  const jsonStyle = { minHeight: 140, padding: 12, color: theme.colors.foreground, backgroundColor: theme.colors.surface0 };
+  const jsonStyle = { minHeight: 96, padding: 12, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, color: theme.colors.foreground, backgroundColor: theme.colors.surface2, textAlignVertical: "top" as const };
 
   const parse = () => {
     try {
@@ -59,7 +60,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
     const config = parse();
     if (!config) return;
     const next = { ...base.values.services };
-    if (base.originalName !== null) delete next[base.originalName];
+    if (base.originalName !== null && base.originalName !== key) delete next[base.originalName];
     const parsed = services.schema.safeParse({ services: { ...next, [key]: { enabled, config } } });
     if (!parsed.success) { setError("validationName"); return; }
     if (await settings.save(parsed.data, base.revision)) onClose();
@@ -71,7 +72,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
       <SettingsSwitch label={t("enabledNew")} value={enabled} onValueChange={setEnabled} disabled={blocked} />
       <SettingsAction label={t("connectionEditor")} actionLabel={mode === "form" ? t("editJson") : t("useForm")} disabled={blocked} onPress={switchMode} />
       {mode === "json" ? <SettingsRow label={t("connectionJson")} hint={t("connectionHint")}>
-        <TextInput accessibilityLabel={t("connectionJson")} multiline value={json} onChangeText={setJson} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={jsonStyle} />
+        <TextInput accessibilityLabel={t("connectionJson")} multiline value={json} onChangeText={setJson} editable={!blocked} autoCapitalize="none" autoCorrect={false} style={{ ...jsonStyle, minHeight: 180 }} />
       </SettingsRow> : <View key="form">
         <SettingsSelect<"http" | "stdio"> label={t("transport")} value={transport} options={[{ label: "HTTP", value: "http" }, { label: "stdio", value: "stdio" }]} onValueChange={setTransport} disabled={blocked} />
         {transport === "http" ? <View key="http">
@@ -91,7 +92,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
         <SettingsSelect<"default" | "true" | "false"> label={t("toolLoading")} value={alwaysLoad} options={[{ label: t("providerDefault"), value: "default" }, { label: t("alwaysLoad"), value: "true" }, { label: t("onDemand"), value: "false" }]} onValueChange={setAlwaysLoad} disabled={blocked} />
       </View>}
     </SettingsCard>
-    {error ? <Text accessibilityRole="alert" style={textStyle}>{t(error)}</Text> : null}
+    {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.statusDanger }}>{t(error)}</Text> : null}
     {saveFailed ? <View style={{ gap: 8 }}>
       <Text accessibilityRole="alert" style={textStyle}>{t("saveConflict")}</Text>
       <SettingsAction label={t("keepDraftReload")} actionLabel={t("reloadSaved")} disabled={settings.saving} onPress={() => void settings.reload()} />
@@ -131,27 +132,20 @@ export function Manager({ theme, layout }: PluginScreenProps) {
     else setNotice("deleteFailed");
   };
   return <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
-    <ScrollView contentContainerStyle={{ padding: layout.compact ? 16 : 24, gap: 24, width: "100%", maxWidth: 1000, alignSelf: "center" }}>
-      <View style={{ gap: 8 }}>
-        <Text accessibilityRole="header" style={{ ...text, fontSize: 24, fontWeight: "600" }}>{t("connectionsTitle")}</Text>
-        <Text style={{ color: theme.colors.foregroundMuted, lineHeight: 22 }}>{t("scopeHint")}</Text>
-        <Text style={{ color: theme.colors.foregroundMuted, lineHeight: 22 }}>{t("providerHint")}</Text>
-      </View>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 24, gap: 24, width: "100%", maxWidth: 720, alignSelf: "center" }}>
       {settings.status === "loading" ? <Text style={text}>{t("loading")}</Text> : settings.status !== "ready" ? <SettingsSection title={t(settings.status === "invalid" ? "invalidTitle" : "readErrorTitle")}>
         <Text accessibilityRole="alert" style={text}>{t(settings.status === "invalid" ? "invalidHint" : "readErrorHint")}</Text>
         <SettingsAction label={t("readAgain")} actionLabel={t("reload")} onPress={() => void settings.reload()} />
-      </SettingsSection> : <SettingsSection title={t("servicesCount", { count: Object.keys(settings.values.services).length })}>
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 8 }}>
-          <Action theme={theme} label={t("reload")} disabled={settings.saving || !!draft || !!deletion} onPress={() => void settings.reload()} />
-          <Action theme={theme} primary label={t("addService")} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(null)} />
-        </View>
-        {!Object.keys(settings.values.services).length ? <Text style={text}>{t("empty")}</Text> : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>{Object.entries(settings.values.services).map(([name, value]) => <View key={name} style={{ flexBasis: layout.compact ? "100%" : 320, flexGrow: 1 }}><SettingsCard>
-          <SettingsSwitch label={name} hint={`${value.config.type === "http" ? "HTTP" : "stdio"} · ${t(value.enabled ? "enabledNew" : "disabled")}`} value={value.enabled} disabled={settings.saving || !!draft || !!deletion} onValueChange={() => void toggle(name)} />
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: 4, paddingHorizontal: 12, paddingBottom: 8 }}>
-            <Action theme={theme} label={t("edit")} accessibilityLabel={t("editNamed", { name })} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(name)} />
-            <Action theme={theme} danger label={t("delete")} accessibilityLabel={t("removeNamed", { name })} disabled={settings.saving || !!draft || !!deletion} onPress={() => { setDeletion({ name, base: settings }); setNotice(""); }} />
-          </View>
-        </SettingsCard></View>)}</View>}
+      </SettingsSection> : <SettingsSection title={t("servicesCount", { count: Object.keys(settings.values.services).length })}
+        info={`${t("scopeHint")}\n\n${t("providerHint")}`}
+        trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Action theme={theme} label={t("reload")} icon="RefreshCw" iconOnly disabled={settings.saving || !!draft || !!deletion} onPress={() => void settings.reload()} />
+          <Action theme={theme} primary label={t("addService")} icon="Plus" iconOnly={layout.compact} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(null)} />
+        </View>}>
+        {!Object.keys(settings.values.services).length ? <SettingsCard><SettingsRow label={t("empty")} /></SettingsCard> : <SettingsCard>
+          {Object.entries(settings.values.services).map(([name, value]) => <ServiceRow key={name} theme={theme} compact={layout.compact} name={name} transport={value.config.type} enabled={value.enabled}
+            disabled={settings.saving || !!draft || !!deletion} onEdit={() => start(name)} onToggle={() => void toggle(name)} onDelete={() => { setDeletion({ name, base: settings }); setNotice(""); }} />)}
+        </SettingsCard>}
       </SettingsSection>}
       {notice && !deletion ? <Text accessibilityRole="alert" style={text}>{t(notice)}</Text> : null}
     </ScrollView>

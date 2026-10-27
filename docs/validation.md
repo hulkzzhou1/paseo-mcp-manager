@@ -45,3 +45,16 @@ Recorded 2026-10-27. Reused Paseo's theme tokens and modal/form components, foll
 - Packaging includes the translation catalogs and excludes tests/development dependencies. No new dependencies were added.
 
 Physical iOS/Android keyboard and screen-reader behavior has not been checked. The server-browser plugin was tried first; the local daemon root did not serve a usable web page, so UI checks used the available Paseo app browser connected to the isolated daemon over its relay.
+
+# v0.1.2 Providers layout alignment
+
+Recorded 2026-10-28 against community Paseo 0.13.2. Compared the actual built-in Providers page in the server-browser plugin and its `providers-section.tsx`, settings styles and PageLayout source.
+
+- Replaced the multi-column, two-tier cards with a grouped settings card. Service rows keep edit navigation, name, transport/enable state, switch and delete control together. Rows are 56px minimum (58px with compact two-line metadata), with the same 720px content limit and 16px gutters as Providers.
+- Reused the public SettingsSection/Card, Icon and Modal components. Added actions to the section header's trailing slot and moved the expanded usage prose into its information tip. Secondary actions use compact icons with accessible labels; compact add uses a labeled plus icon. Buttons have hover/focus feedback. The standalone switch matches Providers' 34×20 track and 16px thumb because the public SDK exposes only a whole settings row for switches; its interactive area is 44px and exposes checked/disabled state. No animation was introduced.
+- Reduced the oversized JSON field minimum to 96px (180px for the full connection editor), with input borders and padding matching host form controls. Existing validation, revision checks, saved-draft recovery and deletion confirmation remain in place. Validation errors now use the danger color; JSON inputs use the host control surface. Ordinary saves preserve the service position instead of moving it to the end; rename still replaces the old key atomically.
+- Typecheck and ten contract/localization tests passed. Default isolated-daemon integration passed (two checks; optional paid-provider check skipped). Server injection and shared connection schema are unchanged.
+- Actual server-browser checks on a disposable daemon: switch off/on persisted through public settings RPCs; clicking a service name opened the editor; typing a draft and closing with Escape preserved saved values; the Save button persisted a valid form, and a public settings assertion verified the original service order was preserved. Deletion required confirmation: cancel kept all 15 sample entries, confirmation removed only the selected entry (14 remained).
+- Checked 1120px desktop layout and 390px/320px compact layouts with 15 fake services, including a long name. Names truncate within their column while switches/actions stay aligned. At 390×844, approximately 12 compact rows are visible. Checked English and Simplified Chinese, light/dark themes, and the compact section information tip. Release media use sample definitions and contain no production configuration.
+
+Paid provider calls were not repeated for this UI-only update. Physical iOS/Android keyboard and screen-reader behavior remains untested.

@@ -65,3 +65,5 @@
 | deleteHint | This removes its saved definition. Existing agents keep their configuration. | 将删除已保存的服务定义，已有 Agent 保持原配置。 |
 | confirmDelete | Confirm deletion | 确认删除 |
 | currentServices | Current saved services: {{names}} | 当前已保存服务：{{names}} |
+| enabled | Enabled | 已启用 |
+| enableNamed | Enable {{name}} for new agents | 对新建 Agent 启用 {{name}} |

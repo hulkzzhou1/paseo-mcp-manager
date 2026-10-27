@@ -12,8 +12,8 @@
     "paseo": ">=0.13.2"
   },
   "media": [
-    "assets/manager-dark.png",
-    "assets/manager-light.png",
-    "assets/manager-editor.png"
+    "assets/manager-dark.jpg",
+    "assets/manager-light.jpg",
+    "assets/manager-editor.jpg"
   ]
 }
