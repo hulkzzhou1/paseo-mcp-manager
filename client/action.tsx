@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Pressable, Text } from "react-native";
-import type { PluginScreenProps } from "@getpaseo/plugin/client";
+import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 
 export function Action({ theme, label, accessibilityLabel = label, icon, iconOnly = false, primary = false, danger = false, disabled = false, onPress }: {
-  theme: PluginScreenProps["theme"]; label: string; accessibilityLabel?: string; icon?: string; iconOnly?: boolean;
+  theme: PluginSurfaceProps["theme"]; label: string; accessibilityLabel?: string; icon?: string; iconOnly?: boolean;
   primary?: boolean; danger?: boolean; disabled?: boolean; onPress(): void;
 }) {
   const [hovered, setHovered] = useState(false);

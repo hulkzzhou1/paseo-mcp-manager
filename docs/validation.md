@@ -68,3 +68,12 @@ Recorded 2026-10-28 against community Paseo 0.13.2 on a disposable daemon with t
 - After the fix, real pointer clicks opened/cancelled the first, second and first editors in sequence. Moving to the section information button left both edit borders transparent and both row backgrounds equal; hovering the first row changed only its background. The same retained-border assertion passed.
 - The server-browser plugin verified real Tab navigation: the service edit button and switch retain the host keyboard outline. The app browser supplied computed-style assertions because server-browser has no DOM-evaluation or hover RPC.
 - Typecheck and all ten contract/localization tests passed. This patch changes client interaction only; paid provider calls and physical mobile/screen-reader testing were not repeated.
+
+# v0.1.4 settings navigation
+
+Recorded 2026-10-28 against community Paseo 0.13.2, using the server-browser plugin and a disposable daemon with fake services.
+
+- Replaced the standalone screen and sidebar-footer registration with the public `addSettingsScreen` API, keeping the translated title and Cable icon. The actual workspace sidebar no longer shows MCP Manager; Settings → Plugins → the plugin actions menu exposes MCP Manager and opens its host-scoped settings route.
+- The manager accepts `PluginSurfaceProps` and renders content inside Paseo's settings frame. Removed its nested ScrollView and duplicate page padding; the host owns the header, centered column, scrolling and back navigation.
+- Checked the actual menu-to-settings navigation at 1120px in the light theme, opened the editor, and saved a valid unchanged sample definition. Public settings assertions verified both services and their original order. At 390×844 in the dark theme, the settings header, compact rows and inline actions remain visible. Release media were refreshed from these real frames and contain sample data only. English and Chinese overview/setup text now describes the settings entry.
+- Typecheck and all ten contract/localization tests passed. Settings schema, server hooks, credentials and new-agent injection are unchanged. Paid provider calls and physical mobile/screen-reader testing were not repeated.

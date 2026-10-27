@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { useSettings, useTranslation, type PluginScreenProps, type SettingsState } from "@getpaseo/plugin/client";
-import { Modal, ScrollView, SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch, TextInput } from "@getpaseo/plugin/client/ui";
+import { useSettings, useTranslation, type PluginSurfaceProps, type SettingsState } from "@getpaseo/plugin/client";
+import { Modal, SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch, TextInput } from "@getpaseo/plugin/client/ui";
 import { ServiceRow } from "./service-row.tsx";
 import { Action } from "./action.tsx";
 import { messages, type MessageKey } from "./messages.ts";
@@ -11,7 +11,7 @@ type Settings = SettingsState<typeof services.schema>;
 type Ready = Extract<Settings, { status: "ready" }>;
 type Draft = { originalName: string | null; values: ServiceValues; revision: string };
 
-function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; settings: Settings; theme: PluginScreenProps["theme"]; onClose(): void }) {
+function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; settings: Settings; theme: PluginSurfaceProps["theme"]; onClose(): void }) {
   const { t } = useTranslation(messages);
   const initial = draft.originalName === null ? undefined : draft.values.services[draft.originalName];
   const [base, setBase] = useState(draft);
@@ -108,7 +108,7 @@ function ServiceEditor({ draft, settings, theme, onClose }: { draft: Draft; sett
   </Modal.Content></Modal>;
 }
 
-export function Manager({ theme, layout }: PluginScreenProps) {
+export function Manager({ theme, layout }: PluginSurfaceProps) {
   const { t } = useTranslation(messages);
   const settings = useSettings(services);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -131,24 +131,22 @@ export function Manager({ theme, layout }: PluginScreenProps) {
     if (await settings.save({ services: next }, deletion.base.revision)) { setDeletion(null); setNotice("deleted"); }
     else setNotice("deleteFailed");
   };
-  return <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
-    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 24, gap: 24, width: "100%", maxWidth: 720, alignSelf: "center" }}>
-      {settings.status === "loading" ? <Text style={text}>{t("loading")}</Text> : settings.status !== "ready" ? <SettingsSection title={t(settings.status === "invalid" ? "invalidTitle" : "readErrorTitle")}>
-        <Text accessibilityRole="alert" style={text}>{t(settings.status === "invalid" ? "invalidHint" : "readErrorHint")}</Text>
-        <SettingsAction label={t("readAgain")} actionLabel={t("reload")} onPress={() => void settings.reload()} />
-      </SettingsSection> : <SettingsSection title={t("servicesCount", { count: Object.keys(settings.values.services).length })}
-        info={`${t("scopeHint")}\n\n${t("providerHint")}`}
-        trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Action theme={theme} label={t("reload")} icon="RefreshCw" iconOnly disabled={settings.saving || !!draft || !!deletion} onPress={() => void settings.reload()} />
-          <Action theme={theme} primary label={t("addService")} icon="Plus" iconOnly={layout.compact} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(null)} />
-        </View>}>
-        {!Object.keys(settings.values.services).length ? <SettingsCard><SettingsRow label={t("empty")} /></SettingsCard> : <SettingsCard>
-          {Object.entries(settings.values.services).map(([name, value]) => <ServiceRow key={name} theme={theme} compact={layout.compact} name={name} transport={value.config.type} enabled={value.enabled}
-            disabled={settings.saving || !!draft || !!deletion} onEdit={() => start(name)} onToggle={() => void toggle(name)} onDelete={() => { setDeletion({ name, base: settings }); setNotice(""); }} />)}
-        </SettingsCard>}
-      </SettingsSection>}
-      {notice && !deletion ? <Text accessibilityRole="alert" style={text}>{t(notice)}</Text> : null}
-    </ScrollView>
+  return <View style={{ gap: 24 }}>
+    {settings.status === "loading" ? <Text style={text}>{t("loading")}</Text> : settings.status !== "ready" ? <SettingsSection title={t(settings.status === "invalid" ? "invalidTitle" : "readErrorTitle")}>
+      <Text accessibilityRole="alert" style={text}>{t(settings.status === "invalid" ? "invalidHint" : "readErrorHint")}</Text>
+      <SettingsAction label={t("readAgain")} actionLabel={t("reload")} onPress={() => void settings.reload()} />
+    </SettingsSection> : <SettingsSection title={t("servicesCount", { count: Object.keys(settings.values.services).length })}
+      info={`${t("scopeHint")}\n\n${t("providerHint")}`}
+      trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Action theme={theme} label={t("reload")} icon="RefreshCw" iconOnly disabled={settings.saving || !!draft || !!deletion} onPress={() => void settings.reload()} />
+        <Action theme={theme} primary label={t("addService")} icon="Plus" iconOnly={layout.compact} disabled={settings.saving || !!draft || !!deletion} onPress={() => start(null)} />
+      </View>}>
+      {!Object.keys(settings.values.services).length ? <SettingsCard><SettingsRow label={t("empty")} /></SettingsCard> : <SettingsCard>
+        {Object.entries(settings.values.services).map(([name, value]) => <ServiceRow key={name} theme={theme} compact={layout.compact} name={name} transport={value.config.type} enabled={value.enabled}
+          disabled={settings.saving || !!draft || !!deletion} onEdit={() => start(name)} onToggle={() => void toggle(name)} onDelete={() => { setDeletion({ name, base: settings }); setNotice(""); }} />)}
+      </SettingsCard>}
+    </SettingsSection>}
+    {notice && !deletion ? <Text accessibilityRole="alert" style={text}>{t(notice)}</Text> : null}
     {draft ? <ServiceEditor draft={draft} settings={settings} theme={theme} onClose={() => setDraft(null)} /> : null}
     {deletion ? <Modal title={t("deleteTitle", { name: deletion.name })} open onOpenChange={open => { if (!open && !settings.saving) setDeletion(null); }}><Modal.Content>
       <Text style={text}>{t("deleteHint")}</Text>

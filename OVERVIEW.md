@@ -1,6 +1,6 @@
 # MCP Manager
 
-Manage HTTP and stdio MCP connections from a Paseo sidebar screen. Add, edit, rename, enable, disable or delete services using a form or a single-service JSON editor. Each daemon keeps its own definitions.
+Manage HTTP and stdio MCP connections in Settings → Plugins → MCP Manager on the selected host. Add, edit, rename, enable, disable or delete services using a form or a single-service JSON editor. Each daemon keeps its own definitions.
 
 Connections use compact rows in a grouped card matching Paseo’s Providers page. Names, transport/status, enable switches and actions stay aligned. Click a name to edit in a modal; add/reload actions sit in the section header, with usage guidance in its information tip. The interface follows the app language: English and Simplified Chinese are included; other languages fall back to English.
 

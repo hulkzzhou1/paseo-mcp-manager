@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import type { PluginScreenProps } from "@getpaseo/plugin/client";
+import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { useTranslation } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { Action } from "./action.tsx";
 import { messages } from "./messages.ts";
 
 export function ServiceRow({ theme, compact, name, transport, enabled, disabled, onEdit, onToggle, onDelete }: {
-  theme: PluginScreenProps["theme"]; compact: boolean; name: string; transport: "http" | "stdio";
+  theme: PluginSurfaceProps["theme"]; compact: boolean; name: string; transport: "http" | "stdio";
   enabled: boolean; disabled: boolean; onEdit(): void; onToggle(): void; onDelete(): void;
 }) {
   const { t } = useTranslation(messages);
